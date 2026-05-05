@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { toast } from "sonner";
+import { authService } from "../../services/auth.service";
+import { apiClient } from "../../services/api";
 
 export type User = {
   id: string;
@@ -18,9 +20,6 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock DB
-const mockUsers: Record<string, User & { pass: string }> = {};
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(() => {
     const saved = localStorage.getItem("auth_user");
@@ -36,42 +35,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   const login = async (email: string, pass: string) => {
-    const emailLower = email.toLowerCase();
-    const foundUser = mockUsers[emailLower];
-    if (foundUser && foundUser.pass === pass) {
-      if (!foundUser.activo) {
-        toast.error("Tu cuenta está desactivada. Contacta al administrador");
-        return false;
-      }
-      const { pass: _, ...safeUser } = foundUser;
-      setUser(safeUser);
+    try {
+      const response = await authService.login(email, pass);
+      apiClient.setToken(response.token);
+      const user: User = {
+        id: response.usuarioId.toString(),
+        name: response.nombre,
+        email,
+        role: "USUARIO_ESTANDAR",
+        activo: true,
+      };
+      setUser(user);
       return true;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Correo o contraseña incorrectos";
+      toast.error(errorMessage);
+      return false;
     }
-    toast.error("Correo o contraseña incorrectos");
-    return false;
   };
 
   const register = async (name: string, email: string, pass: string) => {
-    const emailLower = email.toLowerCase();
-    if (mockUsers[emailLower]) {
-      toast.error("Este correo ya está registrado");
+    try {
+      const response = await authService.register(name, email, pass);
+      apiClient.setToken(response.token);
+      const user: User = {
+        id: response.usuarioId.toString(),
+        name: response.nombre,
+        email,
+        role: "USUARIO_ESTANDAR",
+        activo: true,
+      };
+      setUser(user);
+      return true;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Error al registrarse";
+      toast.error(errorMessage);
       return false;
     }
-    const newUser: User & { pass: string } = {
-      id: crypto.randomUUID(),
-      name,
-      email: emailLower,
-      pass,
-      role: "USUARIO_ESTANDAR",
-      activo: true,
-    };
-    mockUsers[emailLower] = newUser;
-    const { pass: _, ...safeUser } = newUser;
-    setUser(safeUser);
-    return true;
   };
 
   const logout = () => {
+    apiClient.removeToken();
     setUser(null);
   };
 

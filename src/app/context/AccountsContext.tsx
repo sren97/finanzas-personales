@@ -1,12 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useAuth } from "./AuthContext";
 import { toast } from "sonner";
-
-export type AccountType = "EFECTIVO" | "BANCO" | "AHORRO" | "OTRO";
+import { accountsService, AccountType, CuentaResponse } from "../../services/accounts.service";
 
 export type Account = {
-  id: string;
-  userId: string;
+  id: number;
   name: string;
   type: AccountType;
   balance: number;
@@ -15,65 +13,128 @@ export type Account = {
 
 type AccountsContextType = {
   accounts: Account[];
-  createAccount: (name: string, type: AccountType, initialBalance?: number) => void;
-  updateAccount: (id: string, name: string, type: AccountType) => void;
-  deleteAccount: (id: string) => boolean;
+  loading: boolean;
+  createAccount: (name: string, type: AccountType, initialBalance?: number) => Promise<void>;
+  updateAccount: (id: number, name: string, type: AccountType, balance?: number) => Promise<void>;
+  deleteAccount: (id: number) => Promise<boolean>;
+  refreshAccounts: () => Promise<void>;
 };
 
 const AccountsContext = createContext<AccountsContextType | undefined>(undefined);
 
+function mapCuentaToAccount(cuenta: CuentaResponse): Account {
+  return {
+    id: cuenta.id,
+    name: cuenta.nombre,
+    type: cuenta.tipo,
+    balance: cuenta.saldo,
+    active: cuenta.activo,
+  };
+}
+
 export function AccountsProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
-  const [allAccounts, setAllAccounts] = useState<Account[]>(() => {
-    const saved = localStorage.getItem("app_accounts");
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const loadAccounts = async () => {
+    if (!user) return;
+    try {
+      setLoading(true);
+      const cuentas = await accountsService.listAccounts();
+      setAccounts(cuentas.map(mapCuentaToAccount));
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Error al cargar cuentas";
+      toast.error(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    localStorage.setItem("app_accounts", JSON.stringify(allAccounts));
-  }, [allAccounts]);
+    loadAccounts();
+  }, [user?.id]);
 
-  const userAccounts = allAccounts.filter(
-    (a) => a.userId === user?.id && a.active
-  );
-
-  const createAccount = (name: string, type: AccountType, initialBalance = 0) => {
-    if (!user) return;
-    const newAccount: Account = {
-      id: crypto.randomUUID(),
-      userId: user.id,
-      name,
-      type,
-      balance: initialBalance,
-      active: true,
-    };
-    setAllAccounts((prev) => [...prev, newAccount]);
-    toast.success("Cuenta creada exitosamente");
+  const createAccount = async (
+    name: string,
+    type: AccountType,
+    initialBalance = 0
+  ) => {
+    try {
+      const newCuenta = await accountsService.createAccount({
+        nombre: name,
+        tipo: type,
+        saldo: initialBalance,
+      });
+      setAccounts((prev) => [...prev, mapCuentaToAccount(newCuenta)]);
+      toast.success("Cuenta creada exitosamente");
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Error al crear cuenta";
+      toast.error(errorMessage);
+    }
   };
 
-  const updateAccount = (id: string, name: string, type: AccountType) => {
-    setAllAccounts((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, name, type } : a))
-    );
-    toast.success("Cuenta actualizada");
+  const updateAccount = async (
+    id: number,
+    name: string,
+    type: AccountType,
+    balance?: number
+  ) => {
+    try {
+      const updated = await accountsService.updateAccount(id, {
+        nombre: name,
+        tipo: type,
+        saldo: balance,
+      });
+      setAccounts((prev) =>
+        prev.map((a) => (a.id === id ? mapCuentaToAccount(updated) : a))
+      );
+      toast.success("Cuenta actualizada");
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Error al actualizar cuenta";
+      toast.error(errorMessage);
+    }
   };
 
-  const deleteAccount = (id: string) => {
-    const account = allAccounts.find((a) => a.id === id);
-    if (!account) return false;
+  const deleteAccount = async (id: number) => {
+    try {
+      // Verificar si requiere confirmación (si tiene saldo)
+      const state = await accountsService.getDeleteState(id);
+      if (state.requiereConfirmacion && state.saldo > 0) {
+        if (
+          !window.confirm(
+            `Esta cuenta tiene un saldo de $${state.saldo.toLocaleString()}. ¿Estás seguro que deseas eliminarla?`
+          )
+        ) {
+          return false;
+        }
+      }
 
-    // According to HU-04, we warn if balance > 0 (handled in UI)
-    // Actually performing soft delete:
-    setAllAccounts((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, active: false } : a))
-    );
-    toast.success("Cuenta eliminada");
-    return true;
+      await accountsService.deleteAccount(id);
+      setAccounts((prev) => prev.filter((a) => a.id !== id));
+      toast.success("Cuenta eliminada");
+      return true;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Error al eliminar cuenta";
+      toast.error(errorMessage);
+      return false;
+    }
+  };
+
+  const refreshAccounts = async () => {
+    await loadAccounts();
   };
 
   return (
     <AccountsContext.Provider
-      value={{ accounts: userAccounts, createAccount, updateAccount, deleteAccount }}
+      value={{
+        accounts,
+        loading,
+        createAccount,
+        updateAccount,
+        deleteAccount,
+        refreshAccounts,
+      }}
     >
       {children}
     </AccountsContext.Provider>

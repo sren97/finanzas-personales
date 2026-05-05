@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useAccounts, AccountType, Account } from "../context/AccountsContext";
-import { Plus, Edit2, Trash2, X, AlertTriangle } from "lucide-react";
+import { Plus, Edit2, Trash2, X, AlertTriangle, Loader2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -10,9 +10,10 @@ type AccountFormValues = {
 };
 
 export function Accounts() {
-  const { accounts, createAccount, updateAccount, deleteAccount } = useAccounts();
+  const { accounts, loading, createAccount, updateAccount, deleteAccount } = useAccounts();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<AccountFormValues>();
 
@@ -32,26 +33,25 @@ export function Accounts() {
     setEditingAccount(null);
   };
 
-  const onSubmit = (data: AccountFormValues) => {
-    if (editingAccount) {
-      updateAccount(editingAccount.id, data.name, data.type);
-    } else {
-      createAccount(data.name, data.type, 0); // initial balance 0 according to HU-04
+  const onSubmit = async (data: AccountFormValues) => {
+    setIsSubmitting(true);
+    try {
+      if (editingAccount) {
+        await updateAccount(editingAccount.id, data.name, data.type, editingAccount.balance);
+      } else {
+        await createAccount(data.name, data.type, 0);
+      }
+      closeModal();
+    } finally {
+      setIsSubmitting(false);
     }
-    closeModal();
   };
 
-  const handleDelete = (account: Account) => {
-    if (account.balance > 0) {
-      if (!window.confirm(`La cuenta "${account.name}" tiene un saldo de $${account.balance}. ¿Estás seguro que deseas eliminarla?`)) {
-        return;
-      }
-    } else {
-      if (!window.confirm(`¿Estás seguro que deseas eliminar la cuenta "${account.name}"?`)) {
-        return;
-      }
+  const handleDelete = async (account: Account) => {
+    if (!window.confirm(`¿Estás seguro que deseas eliminar la cuenta "${account.name}"?`)) {
+      return;
     }
-    deleteAccount(account.id);
+    await deleteAccount(account.id);
   };
 
   return (
@@ -205,14 +205,23 @@ export function Accounts() {
                 <button
                   type="submit"
                   form="accountForm"
-                  className="inline-flex w-full justify-center rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-500 sm:ml-3 sm:w-auto"
+                  disabled={isSubmitting}
+                  className="inline-flex w-full justify-center rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed sm:ml-3 sm:w-auto"
                 >
-                  {editingAccount ? "Guardar cambios" : "Crear cuenta"}
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      {editingAccount ? "Guardando..." : "Creando..."}
+                    </>
+                  ) : (
+                    editingAccount ? "Guardar cambios" : "Crear cuenta"
+                  )}
                 </button>
                 <button
                   type="button"
                   onClick={closeModal}
-                  className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto"
+                  disabled={isSubmitting}
+                  className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed sm:mt-0 sm:w-auto"
                 >
                   Cancelar
                 </button>
