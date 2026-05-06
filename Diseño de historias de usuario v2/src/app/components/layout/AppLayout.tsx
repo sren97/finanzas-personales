@@ -1,7 +1,7 @@
 import React from "react";
 import { Outlet, Link, Navigate, useLocation, useNavigate } from "react-router";
 import { useAuth } from "../../context/AuthContext";
-import { Wallet, LayoutDashboard, LogOut, Menu, X, Coins, Tag, TrendingUp, PieChart } from "lucide-react";
+import { Wallet, LayoutDashboard, LogOut, Menu, X, Coins, Tags, Receipt } from "lucide-react";
 import { toast } from "sonner";
 
 export function AppLayout() {
@@ -23,9 +23,8 @@ export function AppLayout() {
   const navItems = [
     { name: "Dashboard", path: "/", icon: LayoutDashboard },
     { name: "Cuentas", path: "/accounts", icon: Wallet },
-    { name: "Transacciones", path: "/transactions", icon: TrendingUp },
-    { name: "Categorías", path: "/categories", icon: Tag },
-    { name: "Presupuestos", path: "/budgets", icon: PieChart },
+    { name: "Transacciones", path: "/transactions", icon: Receipt },
+    { name: "Categorías", path: "/categories", icon: Tags },
   ];
 
   return (

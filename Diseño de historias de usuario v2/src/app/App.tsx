@@ -13,12 +13,12 @@ export default function App() {
     <AuthProvider>
       <AccountsProvider>
         <CategoriesProvider>
-          <TransactionsProvider>
-            <BudgetsProvider>
+          <BudgetsProvider>
+            <TransactionsProvider>
               <RouterProvider router={router} />
               <Toaster position="top-right" />
-            </BudgetsProvider>
-          </TransactionsProvider>
+            </TransactionsProvider>
+          </BudgetsProvider>
         </CategoriesProvider>
       </AccountsProvider>
     </AuthProvider>

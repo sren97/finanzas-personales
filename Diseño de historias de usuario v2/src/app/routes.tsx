@@ -5,9 +5,8 @@ import { Dashboard } from "./pages/Dashboard";
 import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
 import { Accounts } from "./pages/Accounts";
-import { Transactions } from "./pages/Transactions";
 import { Categories } from "./pages/Categories";
-import { Budgets } from "./pages/Budgets";
+import { Transactions } from "./pages/Transactions";
 
 export const router = createBrowserRouter([
   {
@@ -16,9 +15,8 @@ export const router = createBrowserRouter([
     children: [
       { index: true, Component: Dashboard },
       { path: "accounts", Component: Accounts },
-      { path: "transactions", Component: Transactions },
       { path: "categories", Component: Categories },
-      { path: "budgets", Component: Budgets },
+      { path: "transactions", Component: Transactions },
     ],
   },
   {
